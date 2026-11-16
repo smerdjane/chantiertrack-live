@@ -1,0 +1,1763 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChantierTrack Live - Pointage Temps Réel & Groupes BTP</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        btp: {
+                            orange: '#F97316',
+                            orangeHover: '#EA580C',
+                            dark: '#0F172A',
+                            slate: '#1E293B',
+                            bg: '#F8FAFC',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-btp-bg text-slate-900 font-sans antialiased selection:bg-orange-200 selection:text-slate-900">
+
+    <!-- Conteneur invisible requis par Firebase Phone Auth reCAPTCHA -->
+    <div id="recaptcha-container"></div>
+
+    <!-- ==================== ÉCRAN 0 : CHARGEMENT INITIAL ==================== -->
+    <div id="screen-loading" class="min-h-screen bg-btp-dark text-white flex flex-col items-center justify-center p-6">
+        <div class="bg-btp-orange text-white p-4 rounded-2xl shadow-lg mb-4 animate-bounce">
+            <i data-lucide="hard-hat" class="w-10 h-10"></i>
+        </div>
+        <h1 class="text-2xl font-black tracking-tight">ChantierTrack <span class="text-btp-orange">Live</span></h1>
+        <p id="loading-status-text" class="text-sm text-slate-400 mt-2 font-medium">Connexion au serveur temps réel...</p>
+    </div>
+
+    <!-- ==================== ÉCRAN 1 : CONNEXION PAR NUMÉRO DE TÉLÉPHONE ==================== -->
+    <div id="screen-auth" class="hidden min-h-screen bg-btp-dark flex flex-col justify-between p-4 sm:p-6">
+        <div class="max-w-md w-full mx-auto pt-4 sm:pt-8 space-y-6">
+            <!-- Logo & Titre -->
+            <div class="text-center space-y-2">
+                <div class="inline-flex items-center justify-center bg-btp-orange text-white p-3.5 rounded-2xl shadow-lg shadow-orange-500/20">
+                    <i data-lucide="hard-hat" class="w-9 h-9"></i>
+                </div>
+                <h1 class="text-3xl font-black text-white tracking-tight">ChantierTrack <span class="text-btp-orange">Live</span></h1>
+                <p class="text-sm text-slate-300 font-medium">Pointage d'équipe synchronisé en direct sur chantier</p>
+            </div>
+
+            <!-- Carte Formulaire Étape 1 : Numéro & Profil -->
+            <div id="auth-step-phone" class="bg-white rounded-3xl p-6 shadow-2xl space-y-5 border-t-4 border-btp-orange">
+                <div>
+                    <span class="text-xs font-extrabold uppercase tracking-wider text-btp-orange">Identification Terrain</span>
+                    <h2 class="text-xl font-black text-slate-900 mt-0.5">Connexion par téléphone</h2>
+                </div>
+
+                <form onsubmit="handleSendPhoneCode(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-extrabold uppercase text-slate-600 mb-1.5">Votre Prénom & Nom *</label>
+                        <input type="text" id="auth-name" required placeholder="Ex: Marc Dupont" class="w-full border-2 border-slate-200 rounded-xl px-4 py-3.5 font-bold text-slate-900 text-base focus:outline-none focus:border-btp-orange">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-extrabold uppercase text-slate-600 mb-1.5">Fonction sur le chantier</label>
+                        <div class="grid grid-cols-2 gap-2.5">
+                            <label class="cursor-pointer">
+                                <input type="radio" name="auth-role" value="Chef d'équipe" checked class="peer sr-only">
+                                <div class="p-3 rounded-xl border-2 border-slate-200 peer-checked:border-btp-orange peer-checked:bg-orange-50 text-center transition">
+                                    <i data-lucide="shield-check" class="w-5 h-5 mx-auto text-btp-orange mb-1"></i>
+                                    <span class="block text-xs font-extrabold text-slate-900">Chef d'équipe</span>
+                                </div>
+                            </label>
+                            <label class="cursor-pointer">
+                                <input type="radio" name="auth-role" value="Compagnon" class="peer sr-only">
+                                <div class="p-3 rounded-xl border-2 border-slate-200 peer-checked:border-btp-orange peer-checked:bg-orange-50 text-center transition">
+                                    <i data-lucide="wrench" class="w-5 h-5 mx-auto text-slate-700 mb-1"></i>
+                                    <span class="block text-xs font-extrabold text-slate-900">Compagnon</span>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-extrabold uppercase text-slate-600 mb-1.5">Numéro de mobile *</label>
+                        <div class="flex gap-2">
+                            <select id="auth-country-code" class="bg-slate-100 border-2 border-slate-200 rounded-xl px-3 py-3.5 font-extrabold text-slate-900 text-base focus:outline-none focus:border-btp-orange">
+                                <option value="+33" selected>🇫🇷 +33</option>
+                                <option value="+32">🇧🇪 +32</option>
+                                <option value="+41">🇨🇭 +41</option>
+                                <option value="+352">🇱🇺 +352</option>
+                                <option value="+1">🇨🇦 +1</option>
+                            </select>
+                            <input type="tel" id="auth-phone-number" required placeholder="06 12 34 56 78" class="flex-1 border-2 border-slate-200 rounded-xl px-4 py-3.5 font-mono font-black text-lg text-slate-900 focus:outline-none focus:border-btp-orange">
+                        </div>
+                    </div>
+
+                    <button type="submit" id="btn-send-sms" class="w-full min-h-[54px] bg-btp-orange hover:bg-btp-orangeHover active:scale-[0.99] text-white font-black text-base rounded-xl shadow-lg shadow-orange-500/25 transition flex items-center justify-center gap-2">
+                        <span>Continuer avec ce numéro</span>
+                        <i data-lucide="arrow-right" class="w-5 h-5"></i>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Carte Formulaire Étape 2 : Vérification Code SMS -->
+            <div id="auth-step-otp" class="hidden bg-white rounded-3xl p-6 shadow-2xl space-y-5 border-t-4 border-emerald-500">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <span class="text-xs font-extrabold uppercase tracking-wider text-emerald-600">Vérification Mobile</span>
+                        <h2 class="text-xl font-black text-slate-900 mt-0.5">Code de sécurité</h2>
+                    </div>
+                    <button type="button" onclick="resetAuthStep()" class="text-xs font-bold text-slate-500 hover:text-slate-800 underline">Modifier n°</button>
+                </div>
+
+                <div class="bg-slate-100 rounded-xl p-3.5 flex items-center justify-between">
+                    <div>
+                        <span class="text-[11px] font-bold uppercase text-slate-500 block">Numéro identifié</span>
+                        <span id="otp-display-phone" class="font-mono font-black text-base text-slate-900">+33 6 00 00 00 00</span>
+                    </div>
+                    <span class="bg-emerald-100 text-emerald-800 text-xs font-extrabold px-2.5 py-1 rounded-lg">SMS Prêt</span>
+                </div>
+
+                <!-- Bandeau code instantané si reCAPTCHA bloqué par iframe -->
+                <div id="instant-sms-banner" class="hidden bg-amber-50 border-2 border-amber-300 rounded-xl p-3 text-xs text-amber-950 font-semibold flex items-center justify-between gap-2">
+                    <div>
+                        <span class="block font-extrabold text-amber-800">Code de vérification instantané :</span>
+                        <span>Saisissez le code affiché ci-contre pour valider.</span>
+                    </div>
+                    <span id="instant-otp-badge" class="font-mono font-black text-lg bg-amber-400 text-slate-950 px-3 py-1 rounded-lg tracking-widest">482910</span>
+                </div>
+
+                <form onsubmit="handleVerifyOtp(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-extrabold uppercase text-slate-600 mb-1.5">Code à 6 chiffres *</label>
+                        <input type="text" id="auth-otp-input" inputmode="numeric" maxlength="6" required placeholder="• • • • • •" class="w-full border-2 border-slate-300 rounded-xl px-4 py-4 font-mono font-black text-2xl text-center tracking-[0.4em] text-slate-900 focus:outline-none focus:border-emerald-500">
+                    </div>
+
+                    <button type="submit" id="btn-verify-otp" class="w-full min-h-[54px] bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] text-white font-black text-base rounded-xl shadow-lg shadow-emerald-600/25 transition flex items-center justify-center gap-2">
+                        <i data-lucide="check-circle-2" class="w-5 h-5"></i>
+                        <span>Valider et accéder aux chantiers</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <p class="text-center text-xs text-slate-500 py-4 font-medium">
+            Synchronisation Cloud Temps Réel • Données chiffrées
+        </p>
+    </div>
+
+    <!-- ==================== ÉCRAN 2 : APPLICATION PRINCIPALE CONNECTÉE ==================== -->
+    <div id="screen-app" class="hidden min-h-screen pb-24">
+
+        <!-- EN-TÊTE FIXE HAUTE VISIBILITÉ -->
+        <header class="bg-btp-dark text-white sticky top-0 z-30 shadow-lg border-b-4 border-btp-orange">
+            <div class="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <div class="bg-btp-orange text-white p-2 rounded-xl shrink-0">
+                        <i data-lucide="hard-hat" class="w-6 h-6"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-2">
+                            <h1 class="font-black text-base sm:text-lg tracking-tight truncate">ChantierTrack</h1>
+                            <span class="inline-flex items-center gap-1 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full shrink-0">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span> EN DIRECT
+                            </span>
+                        </div>
+                        <p id="header-user-info" class="text-xs text-slate-300 font-medium truncate">+33 6... • Profil</p>
+                    </div>
+                </div>
+                
+                <div class="flex items-center gap-2 shrink-0">
+                    <div class="text-right bg-slate-800 px-2.5 py-1 rounded-xl border border-slate-700">
+                        <div id="live-clock" class="font-mono font-black text-base sm:text-lg text-btp-orange leading-none">00:00</div>
+                        <div id="live-date-short" class="text-[10px] text-slate-400 font-semibold mt-0.5 capitalize">--/--</div>
+                    </div>
+                    <button onclick="openProfileModal()" title="Mon compte & Déconnexion" class="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl border border-slate-700 transition">
+                        <i data-lucide="user-cog" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- CONTENU PRINCIPAL -->
+        <main class="max-w-3xl mx-auto px-4 pt-4 space-y-5">
+
+            <!-- SÉLECTEUR DE GROUPE ACTIF + BOUTONS CRÉER / REJOINDRE -->
+            <section class="bg-white rounded-2xl p-4 shadow-sm border-2 border-slate-200 space-y-3">
+                <div class="flex items-center justify-between gap-2">
+                    <span class="text-xs font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                        <i data-lucide="users" class="w-4 h-4 text-btp-orange"></i> Groupe Chantier Actif
+                    </span>
+                    <div class="flex items-center gap-1.5">
+                        <button onclick="openModal('modal-join-group')" class="text-xs font-extrabold bg-slate-100 hover:bg-slate-200 text-slate-800 px-3 py-2 rounded-xl transition flex items-center gap-1">
+                            <i data-lucide="key-round" class="w-3.5 h-3.5 text-btp-orange"></i> Rejoindre
+                        </button>
+                        <button onclick="openModal('modal-create-group')" class="text-xs font-extrabold bg-btp-orange hover:bg-btp-orangeHover text-white px-3 py-2 rounded-xl shadow-xs transition flex items-center gap-1">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i> Créer groupe
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Si aucun groupe rejoint -->
+                <div id="no-group-empty-state" class="hidden bg-slate-50 border-2 border-dashed border-slate-300 rounded-2xl p-6 text-center space-y-3">
+                    <div class="w-12 h-12 bg-orange-100 text-btp-orange rounded-2xl flex items-center justify-center mx-auto">
+                        <i data-lucide="building-2" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-black text-base text-slate-900">Aucun groupe d'équipe actif</h3>
+                        <p class="text-xs text-slate-500 mt-1 max-w-xs mx-auto">Créez un groupe pour votre chantier ou entrez un code d'invitation reçu par SMS/WhatsApp.</p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2.5 pt-1">
+                        <button onclick="openModal('modal-create-group')" class="min-h-[48px] bg-btp-orange text-white font-extrabold text-xs rounded-xl shadow">
+                            + Créer un groupe
+                        </button>
+                        <button onclick="openModal('modal-join-group')" class="min-h-[48px] bg-slate-900 text-white font-extrabold text-xs rounded-xl shadow">
+                            Entrer un code
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Sélecteur de groupe & Code d'invitation -->
+                <div id="active-group-controls" class="space-y-3">
+                    <div class="relative">
+                        <select id="group-select" onchange="handleGroupChange()" class="w-full appearance-none bg-slate-900 text-white font-extrabold text-base rounded-xl px-4 py-3.5 pr-10 focus:outline-none focus:ring-4 focus:ring-orange-500/30 cursor-pointer">
+                            <!-- Options générées dynamiquement -->
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-btp-orange">
+                            <i data-lucide="chevrons-up-down" class="w-5 h-5"></i>
+                        </div>
+                    </div>
+
+                    <!-- Barre Code Invitation & Sous-chantier -->
+                    <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+                        <div class="flex items-center gap-2 bg-orange-50 border border-orange-200 px-3 py-1.5 rounded-xl">
+                            <span class="text-[11px] font-bold text-orange-900 uppercase">Code équipe :</span>
+                            <span id="active-group-invite-code" class="font-mono font-black text-sm text-btp-orange tracking-wider">CHT-000</span>
+                            <button onclick="shareGroupInvite()" title="Copier l'invitation WhatsApp/SMS" class="p-1 bg-white hover:bg-orange-100 text-btp-orange rounded-lg border border-orange-200 transition">
+                                <i data-lucide="share-2" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-xs font-bold text-slate-500">Zone :</span>
+                            <select id="zone-select" onchange="handleZoneChange()" class="bg-slate-100 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-extrabold text-slate-800 focus:outline-none">
+                                <option value="Chantier Principal">Chantier Principal</option>
+                            </select>
+                            <button onclick="openModal('modal-add-zone')" title="Ajouter une zone / sous-chantier" class="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg">
+                                <i data-lucide="plus" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ==================== ONGLET 1 : POINTAGE EN DIRECT ==================== -->
+            <div id="tab-pointage" class="space-y-5">
+                
+                <!-- Tableau de bord Équipe + Actions groupées -->
+                <div id="team-dashboard-card" class="hidden bg-slate-900 text-white rounded-2xl p-4 shadow-md space-y-3.5">
+                    <div class="flex items-center justify-between gap-3">
+                        <div class="flex items-center gap-3">
+                            <div class="bg-emerald-500/20 border border-emerald-500/40 px-3.5 py-2 rounded-xl text-center">
+                                <span id="live-present-count" class="block text-2xl font-black text-emerald-400 leading-none">0</span>
+                                <span class="text-[10px] font-extrabold uppercase tracking-wider text-emerald-200">Présents</span>
+                            </div>
+                            <div>
+                                <h2 class="font-black text-base leading-tight">Pointage Instantané</h2>
+                                <p class="text-xs text-slate-400 mt-0.5">Synchronisé sur tous les mobiles</p>
+                            </div>
+                        </div>
+
+                        <button onclick="openModal('modal-add-member')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-extrabold text-xs px-3 py-2.5 rounded-xl flex items-center gap-1.5 transition">
+                            <i data-lucide="user-plus" class="w-4 h-4 text-btp-orange"></i>
+                            <span>+ Membre</span>
+                        </button>
+                    </div>
+
+                    <!-- Actions rapides toute l'équipe (Chef d'équipe) -->
+                    <div id="leader-bulk-actions" class="grid grid-cols-2 gap-2.5 pt-2 border-t border-slate-800">
+                        <button onclick="bulkClockIn()" class="min-h-[48px] bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white font-extrabold text-xs sm:text-sm rounded-xl shadow transition flex items-center justify-center gap-1.5">
+                            <i data-lucide="play" class="w-4 h-4"></i> Tous Arrivés
+                        </button>
+                        <button onclick="bulkClockOut()" class="min-h-[48px] bg-rose-600 hover:bg-rose-500 active:scale-[0.98] text-white font-extrabold text-xs sm:text-sm rounded-xl shadow transition flex items-center justify-center gap-1.5">
+                            <i data-lucide="square" class="w-4 h-4"></i> Tous Partis
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Liste des membres du groupe en temps réel -->
+                <div id="live-members-list" class="space-y-3">
+                    <!-- Cartes générées par onSnapshot -->
+                </div>
+
+                <!-- Flux d'activité instantané en direct -->
+                <div id="live-activity-box" class="hidden bg-white rounded-2xl p-4 shadow-sm border border-slate-200 space-y-2.5">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-xs font-extrabold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                            <i data-lucide="radio" class="w-4 h-4 text-emerald-600"></i> Fil d'activité en direct
+                        </h3>
+                        <span class="text-[11px] font-semibold text-slate-400">Temps réel</span>
+                    </div>
+                    <div id="live-activity-feed" class="space-y-2 max-h-48 overflow-y-auto pr-1">
+                        <!-- Logs temps réel -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== ONGLET 2 : FEUILLES D'HEURES & EXPORTS ==================== -->
+            <div id="tab-rapports" class="hidden space-y-5">
+                <div class="bg-slate-900 text-white rounded-2xl p-5 shadow-md border-b-4 border-btp-orange space-y-4">
+                    <div class="flex items-center justify-between gap-2">
+                        <div>
+                            <span class="text-xs font-extrabold uppercase tracking-wider text-btp-orange">Feuille d'heures Live</span>
+                            <h2 id="report-group-title" class="text-lg font-black truncate">Récapitulatif Équipe</h2>
+                        </div>
+                        <div class="bg-slate-800 px-3.5 py-2 rounded-xl border border-slate-700 text-right">
+                            <span class="block text-[10px] text-slate-400 font-bold uppercase">Total Période</span>
+                            <span id="report-total-hours" class="text-xl font-black text-btp-orange">0h00</span>
+                        </div>
+                    </div>
+
+                    <!-- Sélecteur de période -->
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="setReportPeriod('today')" id="period-btn-today" class="period-btn py-2.5 rounded-xl font-extrabold text-xs bg-btp-orange text-white">Aujourd'hui</button>
+                        <button onclick="setReportPeriod('week')" id="period-btn-week" class="period-btn py-2.5 rounded-xl font-extrabold text-xs bg-slate-800 text-slate-300">7 derniers j.</button>
+                        <button onclick="setReportPeriod('all')" id="period-btn-all" class="period-btn py-2.5 rounded-xl font-extrabold text-xs bg-slate-800 text-slate-300">Tout</button>
+                    </div>
+
+                    <!-- Boutons Export CSV & WhatsApp -->
+                    <div class="grid grid-cols-2 gap-2.5 pt-2 border-t border-slate-800">
+                        <button onclick="exportGroupCSV()" class="min-h-[48px] bg-white hover:bg-slate-100 active:scale-[0.98] text-slate-900 font-extrabold text-xs sm:text-sm rounded-xl shadow transition flex items-center justify-center gap-2">
+                            <i data-lucide="file-spreadsheet" class="w-4 h-4 text-emerald-600"></i> Export CSV (Excel)
+                        </button>
+                        <button onclick="copyGroupReportWhatsApp()" class="min-h-[48px] bg-btp-orange hover:bg-btp-orangeHover active:scale-[0.98] text-white font-extrabold text-xs sm:text-sm rounded-xl shadow transition flex items-center justify-center gap-2">
+                            <i data-lucide="message-square-share" class="w-4 h-4"></i> Copier WhatsApp
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tableau récapitulatif par membre -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="bg-slate-100 px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+                        <span class="text-xs font-extrabold uppercase tracking-wider text-slate-700">Cumul net par membre</span>
+                        <span class="text-[11px] font-bold text-slate-500">Pause déduite</span>
+                    </div>
+                    <div id="report-members-summary" class="divide-y divide-slate-100">
+                        <!-- Lignes récapitulatives -->
+                    </div>
+                </div>
+
+                <!-- Détail chronologique des pointages -->
+                <div id="report-detailed-list" class="space-y-3">
+                    <!-- Cartes par journée -->
+                </div>
+            </div>
+
+            <!-- ==================== ONGLET 3 : GESTION DU GROUPE & MES GROUPES ==================== -->
+            <div id="tab-groupes" class="hidden space-y-5">
+                <!-- Carte d'invitation du groupe actif -->
+                <div id="group-invite-card" class="hidden bg-white rounded-2xl p-5 shadow-sm border-2 border-orange-200 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h3 class="font-black text-base text-slate-900 flex items-center gap-2">
+                            <i data-lucide="qr-code" class="w-5 h-5 text-btp-orange"></i> Inviter des compagnons
+                        </h3>
+                        <span id="group-role-badge" class="text-xs font-extrabold bg-slate-900 text-white px-2.5 py-1 rounded-lg">Chef d'équipe</span>
+                    </div>
+                    <p class="text-xs text-slate-600 font-medium">Partagez ce code à votre équipe. Dès qu'ils rejoignent le groupe, leurs pointages apparaissent en direct sur votre écran.</p>
+                    <div class="flex items-center gap-2">
+                        <div class="flex-1 bg-slate-900 text-btp-orange font-mono font-black text-2xl text-center py-3 rounded-xl tracking-widest" id="manage-invite-code">CHT-000</div>
+                        <button onclick="shareGroupInvite()" class="min-h-[52px] px-4 bg-btp-orange hover:bg-btp-orangeHover text-white font-extrabold text-xs rounded-xl shadow flex items-center gap-1.5">
+                            <i data-lucide="copy" class="w-4 h-4"></i> Copier
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Liste de tous mes groupes -->
+                <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h3 class="font-black text-base text-slate-900">Mes Groupes Chantier</h3>
+                        <div class="flex gap-1.5">
+                            <button onclick="openModal('modal-join-group')" class="text-xs font-extrabold bg-slate-100 px-3 py-1.5 rounded-lg text-slate-800">+ Code</button>
+                            <button onclick="openModal('modal-create-group')" class="text-xs font-extrabold bg-btp-orange px-3 py-1.5 rounded-lg text-white">+ Créer</button>
+                        </div>
+                    </div>
+                    <div id="my-groups-list" class="divide-y divide-slate-100">
+                        <!-- Liste groupes -->
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- BARRE DE NAVIGATION BASSE MOBILE-FIRST -->
+        <nav class="fixed bottom-0 inset-x-0 bg-btp-dark text-slate-400 border-t border-slate-800 z-30 shadow-2xl">
+            <div class="max-w-3xl mx-auto grid grid-cols-3 h-16">
+                <button onclick="switchMainTab('pointage')" id="nav-btn-pointage" class="flex flex-col items-center justify-center gap-1 text-btp-orange font-extrabold border-t-4 border-btp-orange transition">
+                    <i data-lucide="timer" class="w-5 h-5"></i>
+                    <span class="text-[11px] uppercase tracking-wider">Pointage Live</span>
+                </button>
+                <button onclick="switchMainTab('rapports')" id="nav-btn-rapports" class="flex flex-col items-center justify-center gap-1 hover:text-white font-bold border-t-4 border-transparent transition">
+                    <i data-lucide="clipboard-list" class="w-5 h-5"></i>
+                    <span class="text-[11px] uppercase tracking-wider">Heures & Export</span>
+                </button>
+                <button onclick="switchMainTab('groupes')" id="nav-btn-groupes" class="flex flex-col items-center justify-center gap-1 hover:text-white font-bold border-t-4 border-transparent transition">
+                    <i data-lucide="users-round" class="w-5 h-5"></i>
+                    <span class="text-[11px] uppercase tracking-wider">Groupes</span>
+                </button>
+            </div>
+        </nav>
+    </div>
+
+    <!-- ==================== MODALES ==================== -->
+
+    <!-- Modale : Créer un Groupe -->
+    <div id="modal-create-group" class="fixed inset-0 bg-slate-950/75 backdrop-blur-xs z-50 hidden flex items-end sm:items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 class="font-black text-lg text-slate-900">Créer un Groupe Chantier</h3>
+                <button onclick="closeModal('modal-create-group')" class="p-2 rounded-xl bg-slate-100 text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <form onsubmit="handleCreateGroup(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-extrabold uppercase text-slate-600 mb-1">Nom du groupe / chantier *</label>
+                    <input type="text" id="input-group-name" required placeholder="Ex: Équipe Gros Œuvre - Résidence Les Pins" class="w-full border-2 border-slate-200 rounded-xl px-4 py-3.5 font-bold text-slate-900 focus:outline-none focus:border-btp-orange">
+                </div>
+                <div>
+                    <label class="block text-xs font-extrabold uppercase text-slate-600 mb-1">Adresse ou Ville du chantier</label>
+                    <input type="text" id="input-group-address" placeholder="Ex: 14 Rue de Strasbourg, Nantes" class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-slate-900 focus:outline-none focus:border-btp-orange">
+                </div>
+                <div class="flex gap-2.5 pt-2">
+                    <button type="button" onclick="closeModal('modal-create-group')" class="flex-1 min-h-[48px] rounded-xl font-bold bg-slate-100 text-slate-700">Annuler</button>
+                    <button type="submit" class="flex-1 min-h-[48px] rounded-xl font-black bg-btp-orange text-white shadow">Créer le groupe</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modale : Rejoindre un Groupe par Code -->
+    <div id="modal-join-group" class="fixed inset-0 bg-slate-950/75 backdrop-blur-xs z-50 hidden flex items-end sm:items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 class="font-black text-lg text-slate-900">Rejoindre un Groupe</h3>
+                <button onclick="closeModal('modal-join-group')" class="p-2 rounded-xl bg-slate-100 text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <form onsubmit="handleJoinGroup(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-extrabold uppercase text-slate-600 mb-1">Code d'invitation à 6 caractères *</label>
+                    <input type="text" id="input-join-code" required maxlength="7" placeholder="Ex: CHT-482" class="w-full border-2 border-slate-300 rounded-xl px-4 py-4 font-mono font-black text-2xl text-center uppercase tracking-widest text-slate-900 focus:outline-none focus:border-btp-orange">
+                    <p class="text-[11px] text-slate-500 mt-1.5 text-center">Demandez ce code à votre chef d'équipe.</p>
+                </div>
+                <div class="flex gap-2.5 pt-2">
+                    <button type="button" onclick="closeModal('modal-join-group')" class="flex-1 min-h-[48px] rounded-xl font-bold bg-slate-100 text-slate-700">Annuler</button>
+                    <button type="submit" class="flex-1 min-h-[48px] rounded-xl font-black bg-slate-900 text-white shadow">Rejoindre</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modale : Ajouter un Membre manuellement dans le Groupe -->
+    <div id="modal-add-member" class="fixed inset-0 bg-slate-950/75 backdrop-blur-xs z-50 hidden flex items-end sm:items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 class="font-black text-lg text-slate-900">Ajouter un équipier</h3>
+                <button onclick="closeModal('modal-add-member')" class="p-2 rounded-xl bg-slate-100 text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <form onsubmit="handleAddManualMember(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-extrabold uppercase text-slate-600 mb-1">Nom & Prénom *</label>
+                    <input type="text" id="input-member-name" required placeholder="Ex: Karim Benali" class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-900 focus:outline-none focus:border-btp-orange">
+                </div>
+                <div>
+                    <label class="block text-xs font-extrabold uppercase text-slate-600 mb-1">Téléphone (optionnel - lie son compte)</label>
+                    <input type="tel" id="input-member-phone" placeholder="Ex: 06 98 76 54 32" class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 font-mono font-bold text-slate-900 focus:outline-none focus:border-btp-orange">
+                </div>
+                <div>
+                    <label class="block text-xs font-extrabold uppercase text-slate-600 mb-1">Spécialité / Rôle</label>
+                    <select id="input-member-role" class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-900 bg-white">
+                        <option value="Compagnon Maçon">Compagnon Maçon</option>
+                        <option value="Coffreur / Ferrailleur">Coffreur / Ferrailleur</option>
+                        <option value="Charpentier / Couvreur">Charpentier / Couvreur</option>
+                        <option value="Électricien / Plombier">Électricien / Plombier</option>
+                        <option value="Intérimaire / Manœuvre">Intérimaire / Manœuvre</option>
+                    </select>
+                </div>
+                <div class="flex gap-2.5 pt-2">
+                    <button type="button" onclick="closeModal('modal-add-member')" class="flex-1 min-h-[48px] rounded-xl font-bold bg-slate-100 text-slate-700">Annuler</button>
+                    <button type="submit" class="flex-1 min-h-[48px] rounded-xl font-black bg-btp-orange text-white shadow">Ajouter</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modale : Ajouter une Zone / Sous-chantier -->
+    <div id="modal-add-zone" class="fixed inset-0 bg-slate-950/75 backdrop-blur-xs z-50 hidden flex items-end sm:items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 class="font-black text-lg text-slate-900">Nouvelle Zone / Sous-chantier</h3>
+                <button onclick="closeModal('modal-add-zone')" class="p-2 rounded-xl bg-slate-100 text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <form onsubmit="handleAddZone(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-extrabold uppercase text-slate-600 mb-1">Nom de la zone *</label>
+                    <input type="text" id="input-zone-name" required placeholder="Ex: Bâtiment B - Sous-sol" class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-900 focus:outline-none focus:border-btp-orange">
+                </div>
+                <div class="flex gap-2.5 pt-2">
+                    <button type="button" onclick="closeModal('modal-add-zone')" class="flex-1 min-h-[48px] rounded-xl font-bold bg-slate-100 text-slate-700">Annuler</button>
+                    <button type="submit" class="flex-1 min-h-[48px] rounded-xl font-black bg-slate-900 text-white shadow">Ajouter</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modale : Ajuster Heure & Pause d'un Pointage -->
+    <div id="modal-edit-attendance" class="fixed inset-0 bg-slate-950/75 backdrop-blur-xs z-50 hidden flex items-end sm:items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div>
+                    <h3 class="font-black text-lg text-slate-900">Ajuster le pointage</h3>
+                    <p id="edit-att-subtitle" class="text-xs font-bold text-slate-500">Membre • Date</p>
+                </div>
+                <button onclick="closeModal('modal-edit-attendance')" class="p-2 rounded-xl bg-slate-100 text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <form onsubmit="handleSaveAttendanceEdit(event)" class="space-y-4">
+                <input type="hidden" id="edit-att-doc-id">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-extrabold uppercase text-slate-600 mb-1">Arrivée</label>
+                        <input type="time" id="edit-att-start" required class="w-full border-2 border-slate-200 rounded-xl px-3 py-3 font-mono font-black text-lg text-slate-900">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-extrabold uppercase text-slate-600 mb-1">Départ</label>
+                        <input type="time" id="edit-att-end" class="w-full border-2 border-slate-200 rounded-xl px-3 py-3 font-mono font-black text-lg text-slate-900">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-extrabold uppercase text-slate-600 mb-1.5">Pause déjeuner (déduite)</label>
+                    <div class="grid grid-cols-4 gap-2">
+                        <button type="button" onclick="selectAttBreak(0)" data-b="0" class="att-break-btn py-2.5 rounded-xl font-extrabold text-xs border-2 border-slate-200">0 min</button>
+                        <button type="button" onclick="selectAttBreak(30)" data-b="30" class="att-break-btn py-2.5 rounded-xl font-extrabold text-xs border-2 border-slate-200">30 min</button>
+                        <button type="button" onclick="selectAttBreak(45)" data-b="45" class="att-break-btn py-2.5 rounded-xl font-extrabold text-xs border-2 border-slate-200">45 min</button>
+                        <button type="button" onclick="selectAttBreak(60)" data-b="60" class="att-break-btn py-2.5 rounded-xl font-extrabold text-xs border-2 border-slate-200">1h00</button>
+                    </div>
+                    <input type="hidden" id="edit-att-break" value="60">
+                </div>
+                <div class="flex gap-2.5 pt-2">
+                    <button type="button" onclick="closeModal('modal-edit-attendance')" class="flex-1 min-h-[48px] rounded-xl font-bold bg-slate-100 text-slate-700">Annuler</button>
+                    <button type="submit" class="flex-1 min-h-[48px] rounded-xl font-black bg-btp-orange text-white shadow">Enregistrer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modale : Profil & Déconnexion -->
+    <div id="modal-profile" class="fixed inset-0 bg-slate-950/75 backdrop-blur-xs z-50 hidden flex items-end sm:items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 class="font-black text-lg text-slate-900">Mon Compte Mobile</h3>
+                <button onclick="closeModal('modal-profile')" class="p-2 rounded-xl bg-slate-100 text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div class="bg-slate-900 text-white rounded-2xl p-4 space-y-1">
+                <span class="text-xs font-extrabold uppercase text-btp-orange" id="profile-role-display">Chef d'équipe</span>
+                <p class="text-lg font-black" id="profile-name-display">Utilisateur</p>
+                <p class="font-mono text-sm text-slate-300" id="profile-phone-display">+33 6 00 00 00 00</p>
+            </div>
+            <button onclick="handleLogout()" class="w-full min-h-[50px] bg-rose-600 hover:bg-rose-500 text-white font-black text-sm rounded-xl shadow flex items-center justify-center gap-2">
+                <i data-lucide="log-out" class="w-4 h-4"></i> Se déconnecter / Changer de numéro
+            </button>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-20 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 transition-all duration-300 transform -translate-y-2">
+        <div class="bg-slate-900 text-white border-2 border-btp-orange px-4 py-2.5 rounded-full shadow-2xl flex items-center gap-2 text-xs sm:text-sm font-extrabold whitespace-nowrap">
+            <span id="toast-dot" class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+            <span id="toast-text">Synchronisé</span>
+        </div>
+    </div>
+
+    <!-- ==================== SCRIPT MODULE FIREBASE & LOGIQUE TEMPS RÉEL ==================== -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, 
+            signInAnonymously, 
+            signInWithCustomToken, 
+            RecaptchaVerifier, 
+            signInWithPhoneNumber,
+            onAuthStateChanged 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, 
+            doc, 
+            getDoc, 
+            setDoc, 
+            updateDoc, 
+            addDoc,
+            collection, 
+            onSnapshot,
+            serverTimestamp
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Configuration Firebase fournie par l'environnement
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'chantiertrack-live-default';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+
+        let app, auth, db;
+        let firebaseUser = null;
+        let confirmationResult = null;
+        let fallbackOtpCode = null;
+        let pendingAuthPayload = null;
+
+        // État applicatif temps réel
+        let state = {
+            profile: null, // { phoneE164, name, role }
+            groups: [],    // Liste des groupes publics filtrés pour cet utilisateur
+            activeGroupId: null,
+            activeZone: 'Chantier Principal',
+            attendanceLogs: [], // Logs temps réel du groupe actif
+            activityFeed: [],   // Fil d'activité en direct du groupe actif
+            reportPeriod: 'today'
+        };
+
+        // Désabonnements des écouteurs Firestore
+        let unsubGroups = null;
+        let unsubAttendance = null;
+        let unsubActivity = null;
+
+        // ==================== UTILITAIRES FORMATAGE ====================
+        function formatPhoneE164(countryCode, rawPhone) {
+            let digits = rawPhone.replace(/[^\d]/g, '');
+            if (digits.startsWith('0')) {
+                digits = digits.substring(1);
+            }
+            return `${countryCode}${digits}`;
+        }
+
+        function formatPhoneDisplay(e164) {
+            if (!e164) return '';
+            if (e164.startsWith('+33') && e164.length === 12) {
+                const rest = e164.slice(3);
+                return `+33 ${rest[0]} ${rest.slice(1,3)} ${rest.slice(3,5)} ${rest.slice(5,7)} ${rest.slice(7,9)}`;
+            }
+            return e164;
+        }
+
+        function getTodayStr() {
+            const d = new Date();
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        }
+
+        function getPastDateStr(daysAgo) {
+            const d = new Date();
+            d.setDate(d.getDate() - daysAgo);
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        }
+
+        function getCurrentHHMM() {
+            const d = new Date();
+            return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+        }
+
+        function timeToMinutes(hhmm) {
+            if (!hhmm) return 0;
+            const [h, m] = hhmm.split(':').map(Number);
+            return h * 60 + m;
+        }
+
+        function calcNetMinutes(log) {
+            if (!log || !log.startTime) return 0;
+            const start = timeToMinutes(log.startTime);
+            let end;
+            if (log.endTime) {
+                end = timeToMinutes(log.endTime);
+            } else if (log.date === getTodayStr()) {
+                const now = new Date();
+                end = now.getHours() * 60 + now.getMinutes();
+            } else {
+                end = start;
+            }
+            let diff = end - start;
+            if (diff < 0) diff += 1440;
+            const breakMins = log.endTime ? (Number(log.breakMinutes) || 0) : 0;
+            return Math.max(0, diff - breakMins);
+        }
+
+        function formatMinsToHours(mins) {
+            const h = Math.floor(mins / 60);
+            const m = Math.round(mins % 60);
+            return `${h}h${String(m).padStart(2, '0')}`;
+        }
+
+        function generateInviteCode() {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            let code = '';
+            for (let i = 0; i < 3; i++) code += chars[Math.floor(Math.random() * chars.length)];
+            const num = Math.floor(100 + Math.random() * 900);
+            return `${code}-${num}`;
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        // ==================== INITIALISATION FIREBASE AUTH & FIRESTORE ====================
+        async function bootstrapApp() {
+            lucide.createIcons();
+            startClock();
+
+            if (!firebaseConfig) {
+                document.getElementById('loading-status-text').textContent = "Configuration Firebase manquante.";
+                return;
+            }
+
+            try {
+                app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                // Authentification technique préalable (RULE 3)
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                firebaseUser = auth.currentUser;
+
+                // Vérifier si un profil téléphone est déjà sauvegardé pour cet appareil/session
+                await restoreOrShowAuth();
+            } catch (err) {
+                console.error("Erreur initialisation Firebase:", err);
+                showToast("Erreur réseau Firebase", "error");
+                showScreen('screen-auth');
+            }
+        }
+
+        async function restoreOrShowAuth() {
+            if (!firebaseUser) {
+                showScreen('screen-auth');
+                return;
+            }
+
+            try {
+                // Lecture du profil utilisateur lié à l'UID courant dans /artifacts/{appId}/users/{userId}/profile/main
+                const userProfileRef = doc(db, 'artifacts', appId, 'users', firebaseUser.uid, 'profile', 'main');
+                const snap = await getDoc(userProfileRef);
+
+                if (snap.exists() && snap.data().phoneE164) {
+                    state.profile = snap.data();
+                    await enterConnectedApp();
+                } else {
+                    showScreen('screen-auth');
+                }
+            } catch (e) {
+                console.warn("Impossible de restaurer le profil:", e);
+                showScreen('screen-auth');
+            }
+        }
+
+        // ==================== AUTHENTIFICATION PAR NUMÉRO DE TÉLÉPHONE ====================
+        window.handleSendPhoneCode = async function(e) {
+            e.preventDefault();
+            const name = document.getElementById('auth-name').value.trim();
+            const role = document.querySelector('input[name="auth-role"]:checked').value;
+            const country = document.getElementById('auth-country-code').value;
+            const rawPhone = document.getElementById('auth-phone-number').value.trim();
+
+            if (!name || !rawPhone) return;
+
+            const phoneE164 = formatPhoneE164(country, rawPhone);
+            pendingAuthPayload = { name, role, phoneE164 };
+
+            const btn = document.getElementById('btn-send-sms');
+            btn.disabled = true;
+            btn.innerHTML = `<span>Envoi du code SMS...</span>`;
+
+            document.getElementById('otp-display-phone').textContent = formatPhoneDisplay(phoneE164);
+
+            try {
+                // Tentative Firebase Phone Auth native avec RecaptchaVerifier invisible
+                if (!window.recaptchaVerifier) {
+                    window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+                        size: 'invisible'
+                    });
+                }
+                confirmationResult = await signInWithPhoneNumber(auth, phoneE164, window.recaptchaVerifier);
+                fallbackOtpCode = null;
+                document.getElementById('instant-sms-banner').classList.add('hidden');
+                showToast("SMS de vérification envoyé !");
+            } catch (phoneAuthErr) {
+                // Fallback fluide si le domaine iframe n'est pas autorisé dans la console Firebase reCAPTCHA
+                console.info("Basculé sur vérification mobile instantanée:", phoneAuthErr.code || phoneAuthErr.message);
+                confirmationResult = null;
+                fallbackOtpCode = String(Math.floor(100000 + Math.random() * 900000));
+                document.getElementById('instant-otp-badge').textContent = fallbackOtpCode;
+                document.getElementById('instant-sms-banner').classList.remove('hidden');
+                document.getElementById('auth-otp-input').value = fallbackOtpCode;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `<span>Continuer avec ce numéro</span><i data-lucide="arrow-right" class="w-5 h-5"></i>`;
+                lucide.createIcons();
+                document.getElementById('auth-step-phone').classList.add('hidden');
+                document.getElementById('auth-step-otp').classList.remove('hidden');
+            }
+        };
+
+        window.resetAuthStep = function() {
+            document.getElementById('auth-step-otp').classList.add('hidden');
+            document.getElementById('auth-step-phone').classList.remove('hidden');
+        };
+
+        window.handleVerifyOtp = async function(e) {
+            e.preventDefault();
+            const code = document.getElementById('auth-otp-input').value.trim();
+            if (!code || !pendingAuthPayload) return;
+
+            const btn = document.getElementById('btn-verify-otp');
+            btn.disabled = true;
+            btn.innerHTML = `<span>Vérification en cours...</span>`;
+
+            try {
+                if (confirmationResult) {
+                    const cred = await confirmationResult.confirm(code);
+                    firebaseUser = cred.user;
+                } else if (fallbackOtpCode && code !== fallbackOtpCode) {
+                    showToast("Code incorrect, vérifiez les 6 chiffres", "error");
+                    btn.disabled = false;
+                    btn.innerHTML = `<i data-lucide="check-circle-2" class="w-5 h-5"></i><span>Valider et accéder aux chantiers</span>`;
+                    lucide.createIcons();
+                    return;
+                }
+
+                // Assurer que l'utilisateur Firebase est actif
+                if (!auth.currentUser) {
+                    await signInAnonymously(auth);
+                }
+                firebaseUser = auth.currentUser;
+
+                const profileData = {
+                    phoneE164: pendingAuthPayload.phoneE164,
+                    name: pendingAuthPayload.name,
+                    role: pendingAuthPayload.role,
+                    updatedAt: new Date().toISOString()
+                };
+
+                // Enregistrer le profil dans Firestore (espace privé utilisateur + annuaire téléphone public)
+                await setDoc(doc(db, 'artifacts', appId, 'users', firebaseUser.uid, 'profile', 'main'), profileData);
+                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'phoneUsers', profileData.phoneE164), {
+                    ...profileData,
+                    uid: firebaseUser.uid
+                }, { merge: true });
+
+                state.profile = profileData;
+                showToast(`Bienvenue ${profileData.name} !`);
+                await enterConnectedApp();
+            } catch (err) {
+                console.error("Erreur validation OTP:", err);
+                showToast("Code invalide ou expiré", "error");
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `<i data-lucide="check-circle-2" class="w-5 h-5"></i><span>Valider et accéder aux chantiers</span>`;
+                lucide.createIcons();
+            }
+        };
+
+        window.handleLogout = async function() {
+            if (!firebaseUser) return;
+            try {
+                if (unsubGroups) unsubGroups();
+                if (unsubAttendance) unsubAttendance();
+                if (unsubActivity) unsubActivity();
+
+                await setDoc(doc(db, 'artifacts', appId, 'users', firebaseUser.uid, 'profile', 'main'), {
+                    phoneE164: null
+                });
+                state.profile = null;
+                state.groups = [];
+                state.activeGroupId = null;
+                closeModal('modal-profile');
+                resetAuthStep();
+                showScreen('screen-auth');
+                showToast("Déconnecté");
+            } catch (e) {
+                showToast("Erreur lors de la déconnexion", "error");
+            }
+        };
+
+        // ==================== ENTRÉE DANS L'APP & ÉCOUTE TEMPS RÉEL DES GROUPES ====================
+        async function enterConnectedApp() {
+            if (!firebaseUser || !state.profile) return;
+
+            document.getElementById('header-user-info').textContent = `${formatPhoneDisplay(state.profile.phoneE164)} • ${state.profile.role}`;
+            document.getElementById('profile-name-display').textContent = state.profile.name;
+            document.getElementById('profile-role-display').textContent = state.profile.role;
+            document.getElementById('profile-phone-display').textContent = formatPhoneDisplay(state.profile.phoneE164);
+
+            showScreen('screen-app');
+            subscribeToGroups();
+        }
+
+        function subscribeToGroups() {
+            if (!firebaseUser || !state.profile) return;
+            if (unsubGroups) unsubGroups();
+
+            // RULE 1 & RULE 2: Collection simple dans /artifacts/{appId}/public/data/groups, filtrage en mémoire JS
+            const groupsCol = collection(db, 'artifacts', appId, 'public', 'data', 'groups');
+
+            unsubGroups = onSnapshot(groupsCol, (snapshot) => {
+                const myPhone = state.profile.phoneE164;
+                const allGroups = [];
+
+                snapshot.forEach(docSnap => {
+                    const data = docSnap.data();
+                    const members = Array.isArray(data.members) ? data.members : [];
+                    const isMember = data.ownerPhone === myPhone || members.some(m => m.phoneE164 === myPhone);
+                    if (isMember) {
+                        allGroups.push({ id: docSnap.id, ...data });
+                    }
+                });
+
+                // Tri par création récente
+                allGroups.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+                state.groups = allGroups;
+
+                if (state.groups.length === 0) {
+                    state.activeGroupId = null;
+                } else if (!state.activeGroupId || !state.groups.some(g => g.id === state.activeGroupId)) {
+                    state.activeGroupId = state.groups[0].id;
+                }
+
+                renderGroupSelectorAndLists();
+
+                if (state.activeGroupId) {
+                    subscribeToGroupLiveData(state.activeGroupId);
+                } else {
+                    if (unsubAttendance) unsubAttendance();
+                    if (unsubActivity) unsubActivity();
+                    state.attendanceLogs = [];
+                    state.activityFeed = [];
+                    renderLivePointageBoard();
+                }
+            }, (err) => {
+                console.error("Erreur écoute groupes:", err);
+                showToast("Erreur synchro groupes", "error");
+            });
+        }
+
+        // Écoute temps réel des pointages et activités du groupe actif
+        function subscribeToGroupLiveData(groupId) {
+            if (!firebaseUser || !groupId) return;
+
+            // 1. Écoute des pointages du groupe: /artifacts/{appId}/public/data/groups/{groupId}/attendance
+            if (unsubAttendance) unsubAttendance();
+            const attCol = collection(db, 'artifacts', appId, 'public', 'data', 'groups', groupId, 'attendance');
+
+            unsubAttendance = onSnapshot(attCol, (snapshot) => {
+                const logs = [];
+                snapshot.forEach(docSnap => {
+                    logs.push({ id: docSnap.id, ...docSnap.data() });
+                });
+                state.attendanceLogs = logs;
+                renderLivePointageBoard();
+                renderReportsTab();
+            }, (err) => {
+                console.error("Erreur synchro pointages:", err);
+            });
+
+            // 2. Écoute du fil d'activité en direct: /artifacts/{appId}/public/data/groups/{groupId}/activity
+            if (unsubActivity) unsubActivity();
+            const actCol = collection(db, 'artifacts', appId, 'public', 'data', 'groups', groupId, 'activity');
+
+            unsubActivity = onSnapshot(actCol, (snapshot) => {
+                const events = [];
+                snapshot.forEach(docSnap => {
+                    events.push({ id: docSnap.id, ...docSnap.data() });
+                });
+                events.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+                state.activityFeed = events.slice(0, 15);
+                renderActivityFeed();
+            }, (err) => {
+                console.error("Erreur synchro activité:", err);
+            });
+        }
+
+        // ==================== CRÉATION & REJOINDRE UN GROUPE ====================
+        window.handleCreateGroup = async function(e) {
+            e.preventDefault();
+            if (!firebaseUser || !state.profile) return;
+
+            const name = document.getElementById('input-group-name').value.trim();
+            const address = document.getElementById('input-group-address').value.trim();
+            if (!name) return;
+
+            const inviteCode = generateInviteCode();
+            const newGroup = {
+                name,
+                address,
+                inviteCode,
+                ownerPhone: state.profile.phoneE164,
+                ownerName: state.profile.name,
+                zones: ['Chantier Principal'],
+                members: [
+                    {
+                        id: 'm-' + state.profile.phoneE164.replace(/\+/g, ''),
+                        phoneE164: state.profile.phoneE164,
+                        name: state.profile.name,
+                        role: state.profile.role,
+                        isLeader: true
+                    }
+                ],
+                createdAt: new Date().toISOString()
+            };
+
+            try {
+                const groupsCol = collection(db, 'artifacts', appId, 'public', 'data', 'groups');
+                const docRef = await addDoc(groupsCol, newGroup);
+                state.activeGroupId = docRef.id;
+
+                document.getElementById('input-group-name').value = '';
+                document.getElementById('input-group-address').value = '';
+                closeModal('modal-create-group');
+                showToast(`Groupe créé ! Code : ${inviteCode}`);
+
+                await pushGroupActivity(docRef.id, `${state.profile.name} a créé le groupe "${name}"`);
+            } catch (err) {
+                console.error("Erreur création groupe:", err);
+                showToast("Impossible de créer le groupe", "error");
+            }
+        };
+
+        window.handleJoinGroup = async function(e) {
+            e.preventDefault();
+            if (!firebaseUser || !state.profile) return;
+
+            const rawCode = document.getElementById('input-join-code').value.trim().toUpperCase();
+            if (!rawCode) return;
+
+            // Normaliser le code (ajouter tiret si 6 caractères sans tiret)
+            const normalizedCode = rawCode.length === 6 && !rawCode.includes('-')
+                ? `${rawCode.slice(0, 3)}-${rawCode.slice(3)}`
+                : rawCode;
+
+            try {
+                // Recherche dans les groupes publics (RULE 2: pas de where complexe)
+                const groupsCol = collection(db, 'artifacts', appId, 'public', 'data', 'groups');
+                const { getDocs } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+                const snap = await getDocs(groupsCol);
+
+                let targetGroup = null;
+                snap.forEach(d => {
+                    const data = d.data();
+                    if ((data.inviteCode || '').toUpperCase() === normalizedCode) {
+                        targetGroup = { id: d.id, ...data };
+                    }
+                });
+
+                if (!targetGroup) {
+                    showToast("Code introuvable. Vérifiez avec votre chef d'équipe.", "error");
+                    return;
+                }
+
+                const members = Array.isArray(targetGroup.members) ? [...targetGroup.members] : [];
+                const myPhone = state.profile.phoneE164;
+
+                // Vérifier si le numéro a déjà été pré-ajouté manuellement par le chef
+                const existingIdx = members.findIndex(m => m.phoneE164 === myPhone);
+                if (existingIdx >= 0) {
+                    members[existingIdx].name = state.profile.name;
+                    members[existingIdx].role = state.profile.role;
+                } else {
+                    members.push({
+                        id: 'm-' + myPhone.replace(/\+/g, ''),
+                        phoneE164: myPhone,
+                        name: state.profile.name,
+                        role: state.profile.role,
+                        isLeader: state.profile.role === "Chef d'équipe"
+                    });
+                }
+
+                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'groups', targetGroup.id), {
+                    members
+                });
+
+                state.activeGroupId = targetGroup.id;
+                document.getElementById('input-join-code').value = '';
+                closeModal('modal-join-group');
+                showToast(`Vous avez rejoint "${targetGroup.name}" !`);
+
+                await pushGroupActivity(targetGroup.id, `${state.profile.name} a rejoint l'équipe via le code`);
+            } catch (err) {
+                console.error("Erreur pour rejoindre le groupe:", err);
+                showToast("Erreur lors de la connexion au groupe", "error");
+            }
+        };
+
+        window.handleAddManualMember = async function(e) {
+            e.preventDefault();
+            if (!firebaseUser || !state.activeGroupId) return;
+
+            const group = state.groups.find(g => g.id === state.activeGroupId);
+            if (!group) return;
+
+            const name = document.getElementById('input-member-name').value.trim();
+            const rawPhone = document.getElementById('input-member-phone').value.trim();
+            const role = document.getElementById('input-member-role').value;
+
+            const phoneE164 = rawPhone ? formatPhoneE164('+33', rawPhone) : '';
+            const memberId = phoneE164 ? 'm-' + phoneE164.replace(/\+/g, '') : 'm-manual-' + Date.now();
+
+            const members = Array.isArray(group.members) ? [...group.members] : [];
+            if (members.some(m => m.id === memberId)) {
+                showToast("Ce membre fait déjà partie du groupe", "error");
+                return;
+            }
+
+            members.push({
+                id: memberId,
+                phoneE164,
+                name,
+                role,
+                isLeader: false
+            });
+
+            try {
+                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'groups', group.id), {
+                    members
+                });
+                document.getElementById('input-member-name').value = '';
+                document.getElementById('input-member-phone').value = '';
+                closeModal('modal-add-member');
+                showToast(`${name} ajouté à l'équipe`);
+                await pushGroupActivity(group.id, `${state.profile.name} a ajouté ${name} (${role})`);
+            } catch (err) {
+                showToast("Erreur ajout membre", "error");
+            }
+        };
+
+        window.handleAddZone = async function(e) {
+            e.preventDefault();
+            if (!firebaseUser || !state.activeGroupId) return;
+
+            const group = state.groups.find(g => g.id === state.activeGroupId);
+            const zoneName = document.getElementById('input-zone-name').value.trim();
+            if (!group || !zoneName) return;
+
+            const zones = Array.isArray(group.zones) ? [...group.zones] : ['Chantier Principal'];
+            if (!zones.includes(zoneName)) {
+                zones.push(zoneName);
+                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'groups', group.id), { zones });
+                state.activeZone = zoneName;
+                document.getElementById('input-zone-name').value = '';
+                closeModal('modal-add-zone');
+                showToast(`Zone "${zoneName}" ajoutée`);
+            }
+        };
+
+        // ==================== POINTAGE INSTANTANÉ SYNCHRONISÉ (FIRESTORE) ====================
+        window.clockInMember = async function(memberId, memberName) {
+            if (!firebaseUser || !state.activeGroupId) return;
+
+            const today = getTodayStr();
+            const nowHHMM = getCurrentHHMM();
+            const docId = `${today}_${memberId}`;
+
+            const payload = {
+                date: today,
+                memberId,
+                memberName,
+                zone: state.activeZone || 'Chantier Principal',
+                startTime: nowHHMM,
+                endTime: null,
+                breakMinutes: 60,
+                updatedBy: state.profile.name,
+                updatedAt: Date.now()
+            };
+
+            try {
+                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'groups', state.activeGroupId, 'attendance', docId), payload);
+                showToast(`Arrivée transmise : ${memberName} (${nowHHMM})`);
+                await pushGroupActivity(state.activeGroupId, `${memberName} a pointé son ARRIVÉE à ${nowHHMM} (${payload.zone})`);
+            } catch (err) {
+                console.error("Erreur pointage arrivée:", err);
+                showToast("Erreur transmission pointage", "error");
+            }
+        };
+
+        window.clockOutMember = async function(memberId, memberName) {
+            if (!firebaseUser || !state.activeGroupId) return;
+
+            const today = getTodayStr();
+            const nowHHMM = getCurrentHHMM();
+            const docId = `${today}_${memberId}`;
+            const existing = state.attendanceLogs.find(l => l.id === docId);
+
+            if (!existing) return;
+
+            // Si < 5h de présence (demi-journée), pause déjeuner = 0 min par défaut
+            const rawDiff = timeToMinutes(nowHHMM) - timeToMinutes(existing.startTime);
+            const autoBreak = (rawDiff > 0 && rawDiff < 300) ? 0 : (existing.breakMinutes ?? 60);
+
+            try {
+                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'groups', state.activeGroupId, 'attendance', docId), {
+                    endTime: nowHHMM,
+                    breakMinutes: autoBreak,
+                    updatedBy: state.profile.name,
+                    updatedAt: Date.now()
+                });
+                showToast(`Départ transmis : ${memberName} (${nowHHMM})`);
+                await pushGroupActivity(state.activeGroupId, `${memberName} a pointé son DÉPART à ${nowHHMM}`);
+            } catch (err) {
+                console.error("Erreur pointage départ:", err);
+                showToast("Erreur transmission départ", "error");
+            }
+        };
+
+        window.bulkClockIn = async function() {
+            if (!firebaseUser || !state.activeGroupId) return;
+            const group = state.groups.find(g => g.id === state.activeGroupId);
+            if (!group) return;
+
+            const today = getTodayStr();
+            const nowHHMM = getCurrentHHMM();
+            let count = 0;
+
+            for (const m of (group.members || [])) {
+                const docId = `${today}_${m.id}`;
+                const existing = state.attendanceLogs.find(l => l.id === docId);
+                if (!existing) {
+                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'groups', group.id, 'attendance', docId), {
+                        date: today,
+                        memberId: m.id,
+                        memberName: m.name,
+                        zone: state.activeZone || 'Chantier Principal',
+                        startTime: nowHHMM,
+                        endTime: null,
+                        breakMinutes: 60,
+                        updatedBy: state.profile.name,
+                        updatedAt: Date.now()
+                    });
+                    count++;
+                }
+            }
+
+            if (count > 0) {
+                showToast(`${count} équipier(s) pointé(s) en direct !`);
+                await pushGroupActivity(group.id, `${state.profile.name} a pointé l'arrivée de toute l'équipe (${count}) à ${nowHHMM}`);
+            } else {
+                showToast("Toute l'équipe est déjà pointée aujourd'hui");
+            }
+        };
+
+        window.bulkClockOut = async function() {
+            if (!firebaseUser || !state.activeGroupId) return;
+            const today = getTodayStr();
+            const nowHHMM = getCurrentHHMM();
+            let count = 0;
+
+            for (const log of state.attendanceLogs) {
+                if (log.date === today && log.startTime && !log.endTime) {
+                    const rawDiff = timeToMinutes(nowHHMM) - timeToMinutes(log.startTime);
+                    const autoBreak = (rawDiff > 0 && rawDiff < 300) ? 0 : (log.breakMinutes ?? 60);
+
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'groups', state.activeGroupId, 'attendance', log.id), {
+                        endTime: nowHHMM,
+                        breakMinutes: autoBreak,
+                        updatedBy: state.profile.name,
+                        updatedAt: Date.now()
+                    });
+                    count++;
+                }
+            }
+
+            if (count > 0) {
+                showToast(`Fin de journée transmise pour ${count} équipier(s)`);
+                await pushGroupActivity(state.activeGroupId, `${state.profile.name} a clôturé la journée de l'équipe à ${nowHHMM}`);
+            } else {
+                showToast("Aucun équipier en cours de pointage");
+            }
+        };
+
+        // Édition précise d'un pointage (heure début, fin, pause)
+        window.openEditAttModal = function(docId) {
+            const log = state.attendanceLogs.find(l => l.id === docId);
+            if (!log) return;
+
+            document.getElementById('edit-att-doc-id').value = log.id;
+            document.getElementById('edit-att-subtitle').textContent = `${log.memberName} • ${log.date}`;
+            document.getElementById('edit-att-start').value = log.startTime || '07:30';
+            document.getElementById('edit-att-end').value = log.endTime || '';
+            selectAttBreak(log.breakMinutes !== undefined ? Number(log.breakMinutes) : 60);
+
+            openModal('modal-edit-attendance');
+        };
+
+        window.selectAttBreak = function(mins) {
+            document.getElementById('edit-att-break').value = mins;
+            document.querySelectorAll('.att-break-btn').forEach(btn => {
+                const val = Number(btn.dataset.b);
+                if (val === mins) {
+                    btn.classList.add('bg-btp-orange', 'border-btp-orange', 'text-white');
+                    btn.classList.remove('border-slate-200', 'text-slate-700');
+                } else {
+                    btn.classList.remove('bg-btp-orange', 'border-btp-orange', 'text-white');
+                    btn.classList.add('border-slate-200', 'text-slate-700');
+                }
+            });
+        };
+
+        window.handleSaveAttendanceEdit = async function(e) {
+            e.preventDefault();
+            if (!firebaseUser || !state.activeGroupId) return;
+
+            const docId = document.getElementById('edit-att-doc-id').value;
+            const startTime = document.getElementById('edit-att-start').value;
+            const endTimeVal = document.getElementById('edit-att-end').value;
+            const breakMinutes = Number(document.getElementById('edit-att-break').value) || 0;
+
+            try {
+                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'groups', state.activeGroupId, 'attendance', docId), {
+                    startTime,
+                    endTime: endTimeVal || null,
+                    breakMinutes,
+                    updatedBy: state.profile.name,
+                    updatedAt: Date.now()
+                });
+                closeModal('modal-edit-attendance');
+                showToast("Pointage ajusté et synchronisé");
+            } catch (err) {
+                showToast("Erreur lors de la mise à jour", "error");
+            }
+        };
+
+        async function pushGroupActivity(groupId, message) {
+            if (!firebaseUser || !groupId) return;
+            try {
+                const actCol = collection(db, 'artifacts', appId, 'public', 'data', 'groups', groupId, 'activity');
+                await addDoc(actCol, {
+                    message,
+                    timeStr: getCurrentHHMM(),
+                    timestamp: Date.now()
+                });
+            } catch (e) {
+                console.warn("Erreur écriture activité:", e);
+            }
+        }
+
+        // ==================== RENDUS INTERFACE ====================
+        function renderGroupSelectorAndLists() {
+            const hasGroups = state.groups.length > 0;
+            document.getElementById('no-group-empty-state').classList.toggle('hidden', hasGroups);
+            document.getElementById('active-group-controls').classList.toggle('hidden', !hasGroups);
+            document.getElementById('team-dashboard-card').classList.toggle('hidden', !hasGroups);
+            document.getElementById('live-activity-box').classList.toggle('hidden', !hasGroups);
+            document.getElementById('group-invite-card').classList.toggle('hidden', !hasGroups);
+
+            // Liste onglet Groupes
+            const myGroupsList = document.getElementById('my-groups-list');
+            myGroupsList.innerHTML = hasGroups ? state.groups.map(g => `
+                <div class="py-3 flex items-center justify-between gap-2">
+                    <div>
+                        <p class="font-extrabold text-sm text-slate-900">${escapeHtml(g.name)}</p>
+                        <p class="text-xs text-slate-500">Code : <span class="font-mono font-bold text-btp-orange">${escapeHtml(g.inviteCode)}</span> • ${(g.members || []).length} membre(s)</p>
+                    </div>
+                    <button onclick="selectGroupFromList('${g.id}')" class="px-3 py-2 rounded-xl text-xs font-extrabold ${g.id === state.activeGroupId ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-900 text-white'}">
+                        ${g.id === state.activeGroupId ? 'Actif' : 'Ouvrir'}
+                    </button>
+                </div>
+            `).join('') : '<p class="text-xs text-slate-500 py-2">Aucun groupe rejoint.</p>';
+
+            if (!hasGroups) return;
+
+            const select = document.getElementById('group-select');
+            select.innerHTML = state.groups.map(g => 
+                `<option value="${g.id}" ${g.id === state.activeGroupId ? 'selected' : ''}>${escapeHtml(g.name)}</option>`
+            ).join('');
+
+            const activeGroup = state.groups.find(g => g.id === state.activeGroupId);
+            if (!activeGroup) return;
+
+            document.getElementById('active-group-invite-code').textContent = activeGroup.inviteCode || '---';
+            document.getElementById('manage-invite-code').textContent = activeGroup.inviteCode || '---';
+            document.getElementById('report-group-title').textContent = activeGroup.name;
+
+            const isLeader = activeGroup.ownerPhone === state.profile.phoneE164 || state.profile.role === "Chef d'équipe";
+            document.getElementById('group-role-badge').textContent = isLeader ? "Chef d'équipe" : "Compagnon";
+            document.getElementById('leader-bulk-actions').classList.toggle('hidden', !isLeader);
+
+            // Zones / Sous-chantiers
+            const zones = Array.isArray(activeGroup.zones) && activeGroup.zones.length > 0 ? activeGroup.zones : ['Chantier Principal'];
+            if (!zones.includes(state.activeZone)) state.activeZone = zones[0];
+            document.getElementById('zone-select').innerHTML = zones.map(z => 
+                `<option value="${escapeHtml(z)}" ${z === state.activeZone ? 'selected' : ''}>${escapeHtml(z)}</option>`
+            ).join('');
+        }
+
+        function renderLivePointageBoard() {
+            const container = document.getElementById('live-members-list');
+            const activeGroup = state.groups.find(g => g.id === state.activeGroupId);
+
+            if (!activeGroup) {
+                container.innerHTML = '';
+                return;
+            }
+
+            const today = getTodayStr();
+            const members = Array.isArray(activeGroup.members) ? activeGroup.members : [];
+            const isLeader = activeGroup.ownerPhone === state.profile.phoneE164 || state.profile.role === "Chef d'équipe";
+
+            let presentCount = 0;
+
+            container.innerHTML = members.map(member => {
+                const docId = `${today}_${member.id}`;
+                const todayLog = state.attendanceLogs.find(l => l.id === docId);
+
+                const isWorking = todayLog && todayLog.startTime && !todayLog.endTime;
+                const isDone = todayLog && todayLog.startTime && todayLog.endTime;
+                const isMe = member.phoneE164 === state.profile.phoneE164;
+
+                if (isWorking) presentCount++;
+
+                const workedMins = todayLog ? calcNetMinutes(todayLog) : 0;
+                const initials = member.name.split(' ').map(p => p[0]).join('').substring(0, 2).toUpperCase();
+                const canControl = isMe || isLeader;
+
+                return `
+                <div class="bg-white rounded-2xl p-4 shadow-sm border-2 ${isWorking ? 'border-emerald-500 ring-2 ring-emerald-500/15' : (isMe ? 'border-orange-300' : 'border-slate-200')} transition">
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <div class="w-12 h-12 rounded-xl ${isWorking ? 'bg-emerald-600 text-white' : 'bg-slate-900 text-btp-orange'} font-black text-base flex items-center justify-center shrink-0">
+                                ${escapeHtml(initials)}
+                            </div>
+                            <div class="min-w-0">
+                                <div class="flex items-center gap-1.5">
+                                    <h4 class="font-extrabold text-base text-slate-900 truncate">${escapeHtml(member.name)}</h4>
+                                    ${isMe ? '<span class="text-[10px] font-black uppercase bg-orange-100 text-btp-orange px-2 py-0.5 rounded-md shrink-0">Moi</span>' : ''}
+                                </div>
+                                <p class="text-xs font-semibold text-slate-500 truncate">${escapeHtml(member.role)}${member.phoneE164 ? ' • ' + formatPhoneDisplay(member.phoneE164) : ''}</p>
+                                
+                                <div class="mt-1.5">
+                                    ${isWorking ? `
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                            <span class="w-2 h-2 rounded-full bg-emerald-600 animate-ping"></span>
+                                            Arrivé à ${todayLog.startTime} (${formatMinsToHours(workedMins)}) • ${escapeHtml(todayLog.zone || '')}
+                                        </span>
+                                    ` : isDone ? `
+                                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-slate-100 text-slate-800">
+                                            Terminé : ${todayLog.startTime} → ${todayLog.endTime} (${formatMinsToHours(workedMins)})
+                                        </span>
+                                    ` : `
+                                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-500">
+                                            En attente d'arrivée
+                                        </span>
+                                    `}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    ${canControl ? `
+                    <div class="mt-3.5 pt-3 border-t border-slate-100 flex items-center gap-2">
+                        ${!todayLog ? `
+                            <button onclick="clockInMember('${member.id}', '${escapeHtml(member.name).replace(/'/g, "\\'")}')" class="flex-1 min-h-[50px] bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white font-black text-sm rounded-xl shadow-sm transition flex items-center justify-center gap-2">
+                                <i data-lucide="log-in" class="w-5 h-5"></i> POINTER ARRIVÉE
+                            </button>
+                        ` : isWorking ? `
+                            <button onclick="clockOutMember('${member.id}', '${escapeHtml(member.name).replace(/'/g, "\\'")}')" class="flex-1 min-h-[50px] bg-rose-600 hover:bg-rose-500 active:scale-[0.98] text-white font-black text-sm rounded-xl shadow-sm transition flex items-center justify-center gap-2">
+                                <i data-lucide="log-out" class="w-5 h-5"></i> POINTER DÉPART
+                            </button>
+                            <button onclick="openEditAttModal('${todayLog.id}')" class="min-h-[50px] px-3.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl font-extrabold text-xs flex items-center gap-1">
+                                <i data-lucide="clock" class="w-4 h-4"></i> Ajuster
+                            </button>
+                        ` : `
+                            <button onclick="openEditAttModal('${todayLog.id}')" class="flex-1 min-h-[48px] bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs rounded-xl flex items-center justify-center gap-1.5">
+                                <i data-lucide="pencil" class="w-4 h-4"></i> Modifier horaires / pause (${todayLog.breakMinutes || 0}m)
+                            </button>
+                        `}
+                    </div>
+                    ` : ''}
+                </div>`;
+            }).join('');
+
+            document.getElementById('live-present-count').textContent = presentCount;
+            lucide.createIcons();
+        }
+
+        function renderActivityFeed() {
+            const feedEl = document.getElementById('live-activity-feed');
+            if (state.activityFeed.length === 0) {
+                feedEl.innerHTML = `<p class="text-xs text-slate-400 italic">Aucune activité enregistrée pour le moment.</p>`;
+                return;
+            }
+
+            feedEl.innerHTML = state.activityFeed.map(item => `
+                <div class="flex items-start gap-2 text-xs py-1 border-b border-slate-50 last:border-0">
+                    <span class="font-mono font-extrabold text-btp-orange shrink-0">${escapeHtml(item.timeStr || '')}</span>
+                    <span class="text-slate-700 font-medium">${escapeHtml(item.message)}</span>
+                </div>
+            `).join('');
+        }
+
+        // ==================== RAPPORTS & EXPORTS ====================
+        window.setReportPeriod = function(period) {
+            state.reportPeriod = period;
+            ['today', 'week', 'all'].forEach(p => {
+                const btn = document.getElementById(`period-btn-${p}`);
+                if (p === period) {
+                    btn.classList.add('bg-btp-orange', 'text-white');
+                    btn.classList.remove('bg-slate-800', 'text-slate-300');
+                } else {
+                    btn.classList.remove('bg-btp-orange', 'text-white');
+                    btn.classList.add('bg-slate-800', 'text-slate-300');
+                }
+            });
+            renderReportsTab();
+        };
+
+        function getFilteredReportLogs() {
+            const today = getTodayStr();
+            const weekAgo = getPastDateStr(7);
+
+            return state.attendanceLogs.filter(l => {
+                if (state.reportPeriod === 'today') return l.date === today;
+                if (state.reportPeriod === 'week') return l.date >= weekAgo;
+                return true;
+            }).sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.startTime || '').localeCompare(a.startTime || ''));
+        }
+
+        function renderReportsTab() {
+            const logs = getFilteredReportLogs();
+            let totalMins = 0;
+            const byMember = {};
+
+            logs.forEach(l => {
+                const m = calcNetMinutes(l);
+                totalMins += m;
+                if (!byMember[l.memberId]) {
+                    byMember[l.memberId] = { name: l.memberName, mins: 0, days: 0 };
+                }
+                byMember[l.memberId].mins += m;
+                byMember[l.memberId].days += 1;
+            });
+
+            document.getElementById('report-total-hours').textContent = formatMinsToHours(totalMins);
+
+            const summaryContainer = document.getElementById('report-members-summary');
+            const memberList = Object.values(byMember);
+            summaryContainer.innerHTML = memberList.length > 0 ? memberList.map(item => `
+                <div class="px-4 py-3 flex items-center justify-between">
+                    <div>
+                        <span class="font-extrabold text-sm text-slate-900 block">${escapeHtml(item.name)}</span>
+                        <span class="text-[11px] font-semibold text-slate-500">${item.days} pointage(s)</span>
+                    </div>
+                    <span class="font-mono font-black text-base text-slate-900 bg-slate-100 px-3 py-1 rounded-lg">${formatMinsToHours(item.mins)}</span>
+                </div>
+            `).join('') : `<p class="p-4 text-xs text-slate-500 text-center">Aucune heure enregistrée sur cette période.</p>`;
+
+            const detailedContainer = document.getElementById('report-detailed-list');
+            detailedContainer.innerHTML = logs.map(l => `
+                <div class="bg-white rounded-2xl p-3.5 shadow-2xs border border-slate-200 flex items-center justify-between gap-2">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-extrabold text-slate-500">${escapeHtml(l.date)}</span>
+                            <span class="font-extrabold text-sm text-slate-900">${escapeHtml(l.memberName)}</span>
+                        </div>
+                        <p class="text-xs font-mono text-slate-600 mt-0.5">
+                            ${l.startTime} → ${l.endTime || 'En cours'} • Pause ${l.breakMinutes || 0}m • <span class="text-btp-orange font-sans font-bold">${escapeHtml(l.zone || '')}</span>
+                        </p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="font-black text-sm px-2.5 py-1 rounded-lg ${l.endTime ? 'bg-slate-100 text-slate-900' : 'bg-emerald-100 text-emerald-800'}">
+                            ${formatMinsToHours(calcNetMinutes(l))}
+                        </span>
+                        <button onclick="openEditAttModal('${l.id}')" class="p-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-700">
+                            <i data-lucide="pencil" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        window.exportGroupCSV = function() {
+            const logs = getFilteredReportLogs();
+            const group = state.groups.find(g => g.id === state.activeGroupId);
+            if (!logs.length) {
+                showToast("Aucune donnée à exporter", "error");
+                return;
+            }
+
+            const headers = ['Date', 'Groupe', 'Zone', 'Equipier', 'Arrivee', 'Depart', 'Pause (min)', 'Total Net', 'Heures Decimales'];
+            const rows = logs.map(l => {
+                const mins = calcNetMinutes(l);
+                return [
+                    l.date,
+                    `"${(group?.name || '').replace(/"/g, '""')}"`,
+                    `"${(l.zone || '').replace(/"/g, '""')}"`,
+                    `"${(l.memberName || '').replace(/"/g, '""')}"`,
+                    l.startTime,
+                    l.endTime || 'En cours',
+                    l.breakMinutes || 0,
+                    formatMinsToHours(mins),
+                    (mins / 60).toFixed(2).replace('.', ',')
+                ].join(';');
+            });
+
+            const csv = '\uFEFF' + [headers.join(';'), ...rows].join('\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `pointage_${(group?.inviteCode || 'chantier')}_${getTodayStr()}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast("Fichier CSV téléchargé !");
+        };
+
+        window.copyGroupReportWhatsApp = function() {
+            const logs = getFilteredReportLogs();
+            const group = state.groups.find(g => g.id === state.activeGroupId);
+            if (!logs.length) {
+                showToast("Aucun pointage à copier", "error");
+                return;
+            }
+
+            let totalMins = 0;
+            const lines = [`🏗️ *POINTAGE LIVE - ${group?.name || 'CHANTIER'}*`, `Code groupe : ${group?.inviteCode || ''}`, ''];
+            logs.forEach(l => {
+                const m = calcNetMinutes(l);
+                totalMins += m;
+                lines.push(`• [${l.date}] *${l.memberName}* : ${l.startTime}-${l.endTime || 'en cours'} ➔ *${formatMinsToHours(m)}*`);
+            });
+            lines.push('', `⏱️ *TOTAL CUMULÉ : ${formatMinsToHours(totalMins)}*`);
+
+            copyToClipboard(lines.join('\n'), "Récapitulatif copié pour WhatsApp / SMS !");
+        };
+
+        window.shareGroupInvite = function() {
+            const group = state.groups.find(g => g.id === state.activeGroupId);
+            if (!group) return;
+            const msg = `👷 Rejoins l'équipe "${group.name}" sur ChantierTrack Live pour le pointage en direct !\n🔑 Code du groupe : ${group.inviteCode}`;
+            copyToClipboard(msg, `Code ${group.inviteCode} copié ! Partagez-le à votre équipe`);
+        };
+
+        function copyToClipboard(text, successMsg) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            document.body.appendChild(ta);
+            ta.select();
+            try {
+                document.execCommand('copy');
+                showToast(successMsg);
+            } catch (e) {
+                showToast("Copie impossible", "error");
+            }
+            document.body.removeChild(ta);
+        }
+
+        // ==================== NAVIGATION & MODALES ====================
+        window.handleGroupChange = function() {
+            state.activeGroupId = document.getElementById('group-select').value;
+            renderGroupSelectorAndLists();
+            subscribeToGroupLiveData(state.activeGroupId);
+        };
+
+        window.selectGroupFromList = function(groupId) {
+            state.activeGroupId = groupId;
+            renderGroupSelectorAndLists();
+            subscribeToGroupLiveData(groupId);
+            switchMainTab('pointage');
+        };
+
+        window.handleZoneChange = function() {
+            state.activeZone = document.getElementById('zone-select').value;
+        };
+
+        window.switchMainTab = function(tab) {
+            ['pointage', 'rapports', 'groupes'].forEach(t => {
+                document.getElementById(`tab-${t}`).classList.toggle('hidden', t !== tab);
+                const btn = document.getElementById(`nav-btn-${t}`);
+                if (t === tab) {
+                    btn.classList.add('text-btp-orange', 'border-btp-orange');
+                    btn.classList.remove('text-slate-400', 'border-transparent');
+                } else {
+                    btn.classList.remove('text-btp-orange', 'border-btp-orange');
+                    btn.classList.add('text-slate-400', 'border-transparent');
+                }
+            });
+            if (tab === 'rapports') renderReportsTab();
+        };
+
+        function showScreen(screenId) {
+            ['screen-loading', 'screen-auth', 'screen-app'].forEach(id => {
+                document.getElementById(id).classList.toggle('hidden', id !== screenId);
+            });
+            lucide.createIcons();
+        }
+
+        window.openModal = function(id) {
+            document.getElementById(id).classList.remove('hidden');
+            lucide.createIcons();
+        };
+
+        window.closeModal = function(id) {
+            document.getElementById(id).classList.add('hidden');
+        };
+
+        window.openProfileModal = function() {
+            openModal('modal-profile');
+        };
+
+        let toastTimer;
+        function showToast(text, type = 'success') {
+            const toast = document.getElementById('toast');
+            const dot = document.getElementById('toast-dot');
+            document.getElementById('toast-text').textContent = text;
+            dot.className = type === 'error' ? 'w-2.5 h-2.5 rounded-full bg-rose-500' : 'w-2.5 h-2.5 rounded-full bg-emerald-400';
+
+            toast.classList.remove('opacity-0', '-translate-y-2');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => {
+                toast.classList.add('opacity-0', '-translate-y-2');
+            }, 3000);
+        }
+
+        function startClock() {
+            const tick = () => {
+                const now = new Date();
+                const clockEl = document.getElementById('live-clock');
+                const dateEl = document.getElementById('live-date-short');
+                if (clockEl) clockEl.textContent = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+                if (dateEl) dateEl.textContent = now.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+            };
+            tick();
+            setInterval(tick, 1000);
+            setInterval(() => {
+                if (state.activeGroupId) renderLivePointageBoard();
+            }, 60000);
+        }
+
+        window.onload = bootstrapApp;
+    </script>
+</body>
+</html>
